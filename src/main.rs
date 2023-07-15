@@ -135,7 +135,7 @@ fn construct_huffman_tree(f: &HashMap<char, usize>) -> Node<char> {
                 }
             )
         ) });
-    for _ in 0..heap.len() {
+    for _ in 0..heap.len()-2 { // Not sure about this?
         let Reverse(first_node) = heap.pop().unwrap();
         let Reverse(second_node) = heap.pop().unwrap();
         let sum = first_node.weight + second_node.weight;
