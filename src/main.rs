@@ -4,19 +4,19 @@ use std::cmp::{Ord, Ordering};
 use std::fs::File;
 use std::io::prelude::*;
 
-struct HuffCodeString {
+struct BitString {
     data: Vec<u8>,
     bit_pointer: u8,
     bits_set: u8,
     elem_pointer: usize,
 }
 
-impl HuffCodeString {
+impl BitString {
 
     fn new() -> Self {
-        return HuffCodeString {
+        return BitString {
             data: vec![0],
-            bit_pointer: 128, // 10000000
+            bit_pointer: 0b1000_0000, // 10000000
             elem_pointer: 0,
             bits_set: 0
         };
@@ -24,30 +24,25 @@ impl HuffCodeString {
 
     fn set_bit(&mut self, b: bool) {
         if b {
-            let mut v = self.data[self.elem_pointer];
-            self.data[self.elem_pointer] = v | self.bit_pointer
+            self.data[self.elem_pointer] |= self.bit_pointer;
         }
-        if self.bit_pointer == 1 { // Reached 0000001
-            self.bit_pointer = 128;
+        if self.bit_pointer == 0b0000_0001 {
+            self.bit_pointer = 0b1000_0000;
             self.elem_pointer += 1;
             self.data.push(0);
         }
-        else { self.bit_pointer = self.bit_pointer >> 1; }
-    }
-
-    fn consume(code_string: HuffCodeString) {
-
+        else { self.bit_pointer >>= 1; }
     }
 
 }
 
-impl Iterator for HuffCodeString {
-    type Item = u8;
+// impl Iterator for BitString {
+//     type Item = u8;
 
-    fn next(&mut self) -> Option<Self::Item> {
-    }
+//     fn next(&mut self) -> Option<Self::Item> {
+//     }
 
-}
+// }
 
 struct Node<T> {
     left: Option<Box<Node<T>>>,
@@ -96,8 +91,35 @@ fn write_bytes(data: &Vec<u8>, file_path: &str) {
     f.write_all(data).expect("Couldnt write to file");
 }
 
-fn get_coding_scheme(head_node: Node<char>, data: &str) -> HashMap<char, usize> {
-
+fn get_coding_scheme(head_node: &Node<char>) -> HashMap<char, BitString> {
+    let mut code_map: HashMap<char, BitString> = HashMap::new();
+    let bs = BitString::new();
+    if head_node.left == None && head_node.right == None {
+        bs.set_bit(false);
+        code_map.insert(head_node.data.unwrap().clone(), bs.clone());
+        return code_map;
+    }
+    let mut stack: Vec<(&Node<char>, usize, bool)> = vec![(head_node, 0, false)]; 
+    let p_l: usize = 0;
+    while stack.len() != 0 {
+        let (node, l, t) = stack.pop().unwrap();
+        if p_l > l {
+            bs.unset(p_l - l);  // Unset N bits
+        }
+        bs.set_bit(t);
+        if node.left == None && node.right == None {
+            code_map.insert(node.data.unwrap().clone(), bs.clone());
+        } else {
+            if node.left != None {
+                stack.push((&node.left.unwrap(), l + 1, false));
+            }
+            if node.right != None {
+                stack.push((&node.right.unwrap(), l + 1, true));
+            }
+        }
+        p_l = l;
+    }
+    return code_map;
 }
 
 fn construct_huffman_tree(f: &HashMap<char, usize>) -> Node<char> {
