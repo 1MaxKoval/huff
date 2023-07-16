@@ -4,11 +4,13 @@ use std::cmp::{Ord, Ordering};
 use std::fs::File;
 use std::io::prelude::*;
 
+#[derive(Clone)]
 struct BitString {
     data: Vec<u8>,
     bit_pointer: u8,
     bits_set: u8,
     elem_pointer: usize,
+    iter_elem_p: usize
 }
 
 impl BitString {
@@ -18,9 +20,36 @@ impl BitString {
             data: vec![0],
             bit_pointer: 0b1000_0000, // 10000000
             elem_pointer: 0,
-            bits_set: 0
+            bits_set: 0,
+            iter_elem_p: 0
         };
     }
+
+    fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    fn base10_bit_pointer(&self) -> u8 {
+        match self.bit_pointer {
+            0b1000_0000 => 0,
+            0b0100_0000 => 1,
+            0b0010_0000 => 2,
+            0b0001_0000 => 3,
+            0b0000_1000 => 4,
+            0b0000_0100 => 5,
+            0b0000_0010 => 6,
+            0b0000_0001 => 7,
+            _ => panic!("Non-defined state! BitString implementation error!")
+        }
+    }
+
+    fn bit_len(&self) -> usize {
+        // Number of set bits
+        let mut p = 0b1000_0000;
+
+        self.data.len() * 8
+    }
+
 
     fn set_bit(&mut self, b: bool) {
         if b {
@@ -34,15 +63,40 @@ impl BitString {
         else { self.bit_pointer >>= 1; }
     }
 
+    fn unset(&mut self, u: usize) { // Probably not a good idea to just use a usize
+        if self.bit_len() < u {
+            panic!("Cannot unset a number of bits less than the number of set bits");
+        }
+        for _ in 0..u {
+            if self.bit_pointer == 0b1000_0000 {
+                self.elem_pointer -= 1;
+                self.bit_pointer = 0b0000_0001;
+                self.data.pop();
+            }
+        }
+    } 
+
+    fn append(&mut self, b: BitString) {
+        //Consume another BitString by extending this one.
+    }
+
 }
 
-// impl Iterator for BitString {
-//     type Item = u8;
+impl Iterator for BitString {
+    type Item = u8;
 
-//     fn next(&mut self) -> Option<Self::Item> {
-//     }
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.iter_elem_p == self.data.len() {
+            self.iter_elem_p = 0;
+            None
+        } else {
+            let d = self.data[self.iter_elem_p];
+            self.iter_elem_p += 1;
+            Some(d)
+        }
+    }
 
-// }
+}
 
 struct Node<T> {
     left: Option<Box<Node<T>>>,
@@ -100,7 +154,7 @@ fn get_coding_scheme(head_node: &Node<char>) -> HashMap<char, BitString> {
         return code_map;
     }
     let mut stack: Vec<(&Node<char>, usize, bool)> = vec![(head_node, 0, false)]; 
-    let p_l: usize = 0;
+    let mut p_l: usize = 0;
     while stack.len() != 0 {
         let (node, l, t) = stack.pop().unwrap();
         if p_l > l {
@@ -128,8 +182,8 @@ fn construct_huffman_tree(f: &HashMap<char, usize>) -> Node<char> {
         .for_each(|(c, i)| { heap.push(
             Reverse(
                 Node {
-                    left: Option::None,
-                    right: Option::None,
+                    left: None,
+                    right: None,
                     data: Some(c.clone()),
                     weight: i.clone()
                 }
